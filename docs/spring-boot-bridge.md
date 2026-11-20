@@ -1,0 +1,110 @@
+# Spring Boot lifecycle bridge
+
+`process-engine-api-lifecycle-spring-boot` is a Spring Boot bridge for the portable process application lifecycle. It currently contains the lifecycle contract, its default implementation, and Spring Boot integration. The portable lifecycle documentation is intentionally separate in [lifecycle.md](lifecycle.md), because the contract can later move to the Process Engine API without carrying Spring Boot concerns with it.
+
+## Auto-configuration
+
+The module registers `ProcessApplicationLifecycleAutoConfiguration` through Spring Boot auto-configuration imports.
+
+It creates a `DefaultProcessApplicationLifecycle` only when the application has not supplied its own `ProcessApplicationLifecycle` bean. Supplying a custom lifecycle bean is therefore the extension point for applications that need different coordination behavior.
+
+When a `TaskSubscriptionApi` bean is available, the bridge also configures:
+
+- `SpringProcessApplicationLifecycleEventPublisher`, which projects named lifecycle phases as synchronous Spring application events.
+- `SpringProcessApplicationLifecycleDriver`, which drives startup from `ApplicationStartedEvent` and shutdown through Spring's `SmartLifecycle` callback.
+
+The driver uses `Int.MAX_VALUE - 1000` as its Spring `SmartLifecycle` phase. This leaves room for application components that must stop before or after the bridge.
+
+## Startup and shutdown
+
+At `ApplicationStartedEvent`, the driver obtains `TaskSubscriptionApi` and makes one lifecycle request:
+
+```kotlin
+lifecycle.transitionTo(
+  ProcessApplicationPhase.RUNNING,
+  TaskSubscriptionRegistrationContext(taskSubscriptionApi)
+)
+```
+
+The lifecycle expands that request into all missing named startup transitions in order. During context shutdown, the driver transitions to `STOPPING` and then `STOPPED`.
+
+The bridge does not create or require a task-subscription repository while the lifecycle is still `NOT_STARTED`. The `TaskSubscriptionApi` is obtained only when the startup transition crosses `SUBSCRIPTION_REGISTRATION`.
+
+## Spring events
+
+The event publisher emits the following synchronous application events at their matching named phases:
+
+| Lifecycle phase | Spring event | Typical listener action |
+| --- | --- | --- |
+| `INFRASTRUCTURE_READY` | `ProcessApplicationInfrastructureReadyEvent` | Prepare adapter-dependent infrastructure. |
+| `SUBSCRIPTION_REGISTRATION` | `TaskSubscriptionRegistrationEvent` | Register initial subscriptions using `getTaskSubscriptionApi()`. |
+| `SUBSCRIPTIONS_REGISTERED` | `TaskSubscriptionsRegisteredEvent` | Start components that depend on initial subscriptions. |
+| `RUNNING` | `ProcessApplicationRunningEvent` | Start normal application work. |
+| `STOPPING` | `ProcessApplicationStoppingEvent` | Stop new work and begin shutdown. |
+| `STOPPED` | `ProcessApplicationStoppedEvent` | Perform final cleanup. |
+
+For example, an application can register initial subscriptions with a synchronous event listener:
+
+```kotlin
+@Component
+class OrderTaskSubscriptions {
+
+  @EventListener
+  fun register(event: TaskSubscriptionRegistrationEvent) {
+    event.getTaskSubscriptionApi().subscribeForTask(orderTaskSubscription)
+  }
+}
+```
+
+Application-event listeners run inside the lifecycle transition. An exception from one prevents that target phase from being reached and propagates to the driver. Keep listeners deterministic and avoid blocking work that belongs after `RUNNING`.
+
+## Generic lifecycle event listeners
+
+Every event in the table extends `ProcessEngineApiLifecycleEvent`. The abstract base class carries the integer lifecycle phase and exposes it through `getPhase()`. A listener can therefore handle all Process Engine API lifecycle events without subscribing to unrelated Spring events.
+
+```kotlin
+@Component
+class LifecycleAuditListener {
+
+  @EventListener
+  fun onLifecycleEvent(event: ProcessEngineApiLifecycleEvent) {
+    audit.record(event.getPhase(), event.javaClass.simpleName)
+  }
+}
+```
+
+The phase is also visible to Spring Expression Language as `event.phase`, so a generic listener can be restricted to a phase or a group of phases.
+
+```kotlin
+@EventListener(
+  condition = "#event.phase == T(dev.bpmcrafters.processengineapi.lifecycle.ProcessApplicationPhase).RUNNING"
+)
+fun onRunning(event: ProcessEngineApiLifecycleEvent) {
+  startApplicationWork()
+}
+```
+
+## Custom lifecycle participants in a Spring application
+
+For precise placement between named boundaries, register portable lifecycle participants from configuration or from a Spring bean that calls `ProcessApplicationLifecycle.register` before startup begins. A component that is only created during normal runtime may also register a participant for a future phase such as `STOPPING`.
+
+```kotlin
+@Component
+class ShutdownRegistration(
+  private val lifecycle: ProcessApplicationLifecycle,
+  private val resource: Resource
+) {
+
+  fun registerShutdown() {
+    lifecycle.register(object : ProcessApplicationLifecycleParticipant {
+      override fun getPhase(): Int = ProcessApplicationPhase.STOPPING
+
+      override fun onPhase(context: ProcessApplicationLifecycleContext) {
+        resource.close()
+      }
+    })
+  }
+}
+```
+
+The participant must be registered before `STOPPING` is reached and not while another lifecycle transition is dispatching participants.
