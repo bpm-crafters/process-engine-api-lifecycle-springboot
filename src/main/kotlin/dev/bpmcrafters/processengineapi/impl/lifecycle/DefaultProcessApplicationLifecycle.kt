@@ -87,6 +87,7 @@ class DefaultProcessApplicationLifecycle : ProcessApplicationLifecycle {
           transitionToNamedPhase(namedPhase, targetContext, registrationContext)
         }
       if (phase < targetPhase) {
+        enter(targetPhase)
         dispatch(targetPhase, targetContext)
         reach(targetPhase)
       }
@@ -109,6 +110,7 @@ class DefaultProcessApplicationLifecycle : ProcessApplicationLifecycle {
     } else {
       ProcessApplicationLifecycleContext(namedPhase)
     }
+    enter(namedPhase)
     dispatch(namedPhase, context)
     reach(namedPhase)
   }
@@ -140,7 +142,13 @@ class DefaultProcessApplicationLifecycle : ProcessApplicationLifecycle {
   private fun reach(next: Int) {
     phase = next
     logger.info {
-      "PROCESS-ENGINE-API-LIFECYCLE-001: Lifecycle transition to phase ${describe(next)} completed."
+      "PROCESS-ENGINE-API-LIFECYCLE-002: Lifecycle phase ${describe(next)} reached."
+    }
+  }
+
+  private fun enter(next: Int) {
+    logger.info {
+      "PROCESS-ENGINE-API-LIFECYCLE-001: Entering lifecycle phase ${describe(next)}."
     }
   }
 }

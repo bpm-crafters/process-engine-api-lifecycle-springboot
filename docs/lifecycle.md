@@ -73,8 +73,9 @@ lifecycle.transitionTo(ProcessApplicationPhase.STOPPING)
 lifecycle.transitionTo(ProcessApplicationPhase.STOPPED)
 ```
 
-Each successfully reached phase is logged at `INFO` level. The stable message code is `PROCESS-ENGINE-API-LIFECYCLE-001`.
+Every entered phase is logged at `INFO` level before its participants run. A second message is logged after they finish successfully.
 
 ```text
-PROCESS-ENGINE-API-LIFECYCLE-001: Lifecycle transition to phase RUNNING (42) completed.
+PROCESS-ENGINE-API-LIFECYCLE-001: Entering lifecycle phase RUNNING (42).
+PROCESS-ENGINE-API-LIFECYCLE-002: Lifecycle phase RUNNING (42) reached.
 ```

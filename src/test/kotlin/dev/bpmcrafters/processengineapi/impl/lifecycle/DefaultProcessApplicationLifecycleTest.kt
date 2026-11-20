@@ -99,14 +99,18 @@ internal class DefaultProcessApplicationLifecycleTest {
   }
 
   @Test
-  fun `logs a message code when a phase is reached`(output: CapturedOutput) {
+  fun `logs entering and reaching a phase`(output: CapturedOutput) {
     val lifecycle = DefaultProcessApplicationLifecycle()
 
     lifecycle.transitionTo(ProcessApplicationPhase.INFRASTRUCTURE_READY)
 
     assertThat(output.out).contains(
-      "PROCESS-ENGINE-API-LIFECYCLE-001: Lifecycle transition to phase " +
-        "INFRASTRUCTURE_READY (${ProcessApplicationPhase.INFRASTRUCTURE_READY}) completed."
+      "PROCESS-ENGINE-API-LIFECYCLE-001: Entering lifecycle phase " +
+        "INFRASTRUCTURE_READY (${ProcessApplicationPhase.INFRASTRUCTURE_READY})."
+    )
+    assertThat(output.out).contains(
+      "PROCESS-ENGINE-API-LIFECYCLE-002: Lifecycle phase " +
+        "INFRASTRUCTURE_READY (${ProcessApplicationPhase.INFRASTRUCTURE_READY}) reached."
     )
   }
 
