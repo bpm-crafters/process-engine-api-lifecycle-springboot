@@ -3,6 +3,7 @@ package dev.bpmcrafters.processengineapi.springboot.lifecycle
 import dev.bpmcrafters.processengineapi.Empty
 import dev.bpmcrafters.processengineapi.MetaInfo
 import dev.bpmcrafters.processengineapi.MetaInfoAware
+import dev.bpmcrafters.processengineapi.impl.lifecycle.DefaultProcessApplicationLifecycle
 import dev.bpmcrafters.processengineapi.lifecycle.ProcessApplicationLifecycle
 import dev.bpmcrafters.processengineapi.lifecycle.ProcessApplicationLifecycleContext
 import dev.bpmcrafters.processengineapi.lifecycle.ProcessApplicationLifecycleParticipant
@@ -12,15 +13,40 @@ import dev.bpmcrafters.processengineapi.task.TaskSubscription
 import dev.bpmcrafters.processengineapi.task.TaskSubscriptionApi
 import dev.bpmcrafters.processengineapi.task.UnsubscribeFromTaskCmd
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.beans.factory.getBean
 import org.springframework.boot.WebApplicationType
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.context.annotation.Bean
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import java.util.concurrent.CompletableFuture
 
 internal class SpringProcessApplicationLifecycleIntegrationTest {
+
+  @Test
+  fun `reaches stopped when a stopping participant fails`() {
+    val lifecycle = DefaultProcessApplicationLifecycle()
+    val calls = mutableListOf<String>()
+    lifecycle.register(participant(ProcessApplicationPhase.STOPPING) {
+      calls += "stopping"
+      throw IllegalStateException("stop failed")
+    })
+    lifecycle.register(participant(ProcessApplicationPhase.STOPPED) { calls += "stopped" })
+    val taskSubscriptionApiProvider = mock<ObjectProvider<TaskSubscriptionApi>>()
+    whenever(taskSubscriptionApiProvider.getObject()).thenReturn(TestTaskSubscriptionApi())
+    val driver = SpringProcessApplicationLifecycleDriver(lifecycle, taskSubscriptionApiProvider)
+
+    driver.startLifecycle()
+
+    assertThatIllegalStateException().isThrownBy { driver.stop() }
+      .withMessage("One or more lifecycle participants failed during shutdown")
+    assertThat(calls).containsExactly("stopping", "stopped")
+    assertThat(lifecycle.getPhase()).isEqualTo(ProcessApplicationPhase.STOPPED)
+  }
 
   @Test
   fun `starts and stops participants in integer phase order`() {
@@ -110,5 +136,16 @@ internal class SpringProcessApplicationLifecycleIntegrationTest {
     override fun meta(instance: MetaInfoAware): MetaInfo = object : MetaInfo {}
 
     override fun getSupportedRestrictions(): Set<String> = emptySet()
+  }
+
+  private fun participant(
+    phase: Int,
+    action: (ProcessApplicationLifecycleContext) -> Unit
+  ): ProcessApplicationLifecycleParticipant = object : ProcessApplicationLifecycleParticipant {
+    override fun getPhase(): Int = phase
+
+    override fun onPhase(context: ProcessApplicationLifecycleContext) {
+      action(context)
+    }
   }
 }

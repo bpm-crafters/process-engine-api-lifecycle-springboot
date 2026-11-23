@@ -26,7 +26,7 @@ lifecycle.transitionTo(
 )
 ```
 
-The lifecycle expands that request into all missing named startup transitions in order. During context shutdown, the driver transitions to `STOPPING` and then `STOPPED`.
+The lifecycle expands that request into all missing named startup transitions in order. During context shutdown, the driver requests `STOPPED`, which transitions through `STOPPING` first. This lets the lifecycle collect shutdown failures while still invoking every shutdown participant.
 
 The bridge does not create or require a task-subscription repository while the lifecycle is still `NOT_STARTED`. The `TaskSubscriptionApi` is obtained only when the startup transition crosses `SUBSCRIPTION_REGISTRATION`.
 
@@ -56,7 +56,7 @@ class OrderTaskSubscriptions {
 }
 ```
 
-Application-event listeners run inside the lifecycle transition. An exception from one prevents that target phase from being reached and propagates to the driver. Keep listeners deterministic and avoid blocking work that belongs after `RUNNING`.
+Application-event listeners run inside the lifecycle transition. A startup exception prevents that target phase from being reached and makes the lifecycle unusable. During shutdown, listener failures are collected after all shutdown phases have run. Keep listeners deterministic and avoid blocking work that belongs after `RUNNING`.
 
 ## Generic lifecycle event listeners
 

@@ -53,7 +53,6 @@ class SpringProcessApplicationLifecycleDriver(
       return
     }
 
-    lifecycle.transitionTo(ProcessApplicationPhase.STOPPING)
     lifecycle.transitionTo(ProcessApplicationPhase.STOPPED)
     started = false
   }
