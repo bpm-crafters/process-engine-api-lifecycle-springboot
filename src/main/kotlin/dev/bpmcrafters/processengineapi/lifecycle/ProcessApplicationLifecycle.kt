@@ -3,9 +3,11 @@ package dev.bpmcrafters.processengineapi.lifecycle
 /**
  * Coordinates the portable process-application lifecycle.
  *
- * Participants must be registered before the first phase is entered. A transition succeeds
- * only after every participant has completed synchronously. A requested phase that has already
- * been reached is skipped.
+ * Participants must be registered before their target phase is reached; registration for a future
+ * phase is allowed. A startup failure blocks further startup transitions but permits shutdown
+ * transitions; shutdown participants receive that failure in their context. During shutdown, every
+ * participant is invoked and failures are reported after the phase has been reached. A requested
+ * phase that has already been reached is skipped.
  *
  * @since 1.8.0
  */
