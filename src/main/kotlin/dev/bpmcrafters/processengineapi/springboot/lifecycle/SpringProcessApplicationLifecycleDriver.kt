@@ -27,6 +27,9 @@ class SpringProcessApplicationLifecycleDriver(
   @Volatile
   private var started = false
 
+  @Volatile
+  private var startupAttempted = false
+
   override fun start() {
   }
 
@@ -40,6 +43,7 @@ class SpringProcessApplicationLifecycleDriver(
       return
     }
 
+    startupAttempted = true
     lifecycle.transitionTo(
       ProcessApplicationPhase.RUNNING,
       TaskSubscriptionRegistrationContext(taskSubscriptionApiProvider.getObject())
@@ -49,17 +53,24 @@ class SpringProcessApplicationLifecycleDriver(
 
   @Synchronized
   override fun stop() {
-    if (!started) {
+    if (!started && !startupAttempted) {
       return
     }
 
-    lifecycle.transitionTo(ProcessApplicationPhase.STOPPED)
-    started = false
+    try {
+      lifecycle.transitionTo(ProcessApplicationPhase.STOPPED)
+    } finally {
+      started = false
+      startupAttempted = false
+    }
   }
 
   override fun stop(callback: Runnable) {
-    stop()
-    callback.run()
+    try {
+      stop()
+    } finally {
+      callback.run()
+    }
   }
 
   override fun isRunning(): Boolean = started

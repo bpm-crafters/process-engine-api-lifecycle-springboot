@@ -42,8 +42,34 @@ internal class SpringProcessApplicationLifecycleIntegrationTest {
 
     driver.startLifecycle()
 
-    assertThatIllegalStateException().isThrownBy { driver.stop() }
+    var callbackCalled = false
+    assertThatIllegalStateException().isThrownBy { driver.stop(Runnable { callbackCalled = true }) }
       .withMessage("One or more lifecycle participants failed during shutdown")
+    assertThat(callbackCalled).isTrue()
+    assertThat(driver.isRunning).isFalse()
+    assertThat(calls).containsExactly("stopping", "stopped")
+    assertThat(lifecycle.getPhase()).isEqualTo(ProcessApplicationPhase.STOPPED)
+  }
+
+  @Test
+  fun `rolls back lifecycle after startup failure`() {
+    val lifecycle = DefaultProcessApplicationLifecycle()
+    val calls = mutableListOf<String>()
+    lifecycle.register(participant(ProcessApplicationPhase.INFRASTRUCTURE_READY) {
+      throw IllegalStateException("startup failed")
+    })
+    lifecycle.register(participant(ProcessApplicationPhase.STOPPING) { calls += "stopping" })
+    lifecycle.register(participant(ProcessApplicationPhase.STOPPED) { calls += "stopped" })
+    val taskSubscriptionApiProvider = mock<ObjectProvider<TaskSubscriptionApi>>()
+    whenever(taskSubscriptionApiProvider.getObject()).thenReturn(TestTaskSubscriptionApi())
+    val driver = SpringProcessApplicationLifecycleDriver(lifecycle, taskSubscriptionApiProvider)
+
+    assertThatIllegalStateException().isThrownBy { driver.startLifecycle() }
+      .withMessage("startup failed")
+
+    driver.stop()
+
+    assertThat(driver.isRunning).isFalse()
     assertThat(calls).containsExactly("stopping", "stopped")
     assertThat(lifecycle.getPhase()).isEqualTo(ProcessApplicationPhase.STOPPED)
   }

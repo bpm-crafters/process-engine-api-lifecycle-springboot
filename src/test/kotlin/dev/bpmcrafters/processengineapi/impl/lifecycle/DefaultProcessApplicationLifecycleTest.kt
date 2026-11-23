@@ -67,6 +67,20 @@ internal class DefaultProcessApplicationLifecycleTest {
   }
 
   @Test
+  fun `dispatches a custom target phase with its supplied context`() {
+    val lifecycle = DefaultProcessApplicationLifecycle()
+    val customPhase = ProcessApplicationPhase.INFRASTRUCTURE_READY + 10
+    val context = ProcessApplicationLifecycleContext(customPhase)
+    var receivedContext: ProcessApplicationLifecycleContext? = null
+    lifecycle.register(participant(customPhase) { receivedContext = it })
+
+    lifecycle.transitionTo(context)
+
+    assertThat(receivedContext).isSameAs(context)
+    assertThat(lifecycle.getPhase()).isEqualTo(customPhase)
+  }
+
+  @Test
   fun `drives every missing named phase before running`() {
     val lifecycle = DefaultProcessApplicationLifecycle()
     val calls = mutableListOf<Int>()
@@ -105,11 +119,11 @@ internal class DefaultProcessApplicationLifecycleTest {
 
     lifecycle.transitionTo(ProcessApplicationPhase.INFRASTRUCTURE_READY)
 
-    assertThat(output.out).contains(
+    assertThat(output.all).contains(
       "PROCESS-ENGINE-API-LIFECYCLE-001: Entering lifecycle phase " +
         "INFRASTRUCTURE_READY (${ProcessApplicationPhase.INFRASTRUCTURE_READY})."
     )
-    assertThat(output.out).contains(
+    assertThat(output.all).contains(
       "PROCESS-ENGINE-API-LIFECYCLE-002: Lifecycle phase " +
         "INFRASTRUCTURE_READY (${ProcessApplicationPhase.INFRASTRUCTURE_READY}) reached."
     )
@@ -130,6 +144,25 @@ internal class DefaultProcessApplicationLifecycleTest {
     lifecycle.transitionTo(ProcessApplicationPhase.STOPPING)
 
     assertThat(calls).containsExactly(ProcessApplicationPhase.STOPPING)
+  }
+
+  @Test
+  fun `rejects registrations while transitioning or after their phase`() {
+    val lifecycle = DefaultProcessApplicationLifecycle()
+    lifecycle.register(participant(ProcessApplicationPhase.INFRASTRUCTURE_READY) {
+      assertThatIllegalStateException().isThrownBy {
+        lifecycle.transitionTo(ProcessApplicationPhase.INFRASTRUCTURE_READY)
+      }.withMessage("A lifecycle transition is already in progress")
+      assertThatIllegalStateException().isThrownBy {
+        lifecycle.register(participant(ProcessApplicationPhase.RUNNING) {})
+      }.withMessage("Lifecycle participants can only be registered for a phase after NOT_STARTED (-2147483648)")
+    })
+
+    lifecycle.transitionTo(ProcessApplicationPhase.INFRASTRUCTURE_READY)
+
+    assertThatIllegalStateException().isThrownBy {
+      lifecycle.register(participant(ProcessApplicationPhase.INFRASTRUCTURE_READY) {})
+    }.withMessage("Lifecycle participants can only be registered for a phase after INFRASTRUCTURE_READY (-2147482648)")
   }
 
   @Test
@@ -185,10 +218,20 @@ internal class DefaultProcessApplicationLifecycleTest {
   }
 
   @Test
-  fun `makes lifecycle unusable when a startup participant fails`(output: CapturedOutput) {
+  fun `blocks startup but permits shutdown when a startup participant fails`(output: CapturedOutput) {
     val lifecycle = DefaultProcessApplicationLifecycle()
+    val calls = mutableListOf<String>()
     lifecycle.register(participant(ProcessApplicationPhase.INFRASTRUCTURE_READY) {
       throw IllegalStateException("registration failed")
+    })
+    lifecycle.register(participant(ProcessApplicationPhase.RUNNING) { calls += "running" })
+    lifecycle.register(participant(ProcessApplicationPhase.STOPPING) { context ->
+      calls += "stopping"
+      assertThat(context.getStartupFailure()).hasMessage("registration failed")
+    })
+    lifecycle.register(participant(ProcessApplicationPhase.STOPPED) { context ->
+      calls += "stopped"
+      assertThat(context.getStartupFailure()).hasMessage("registration failed")
     })
 
     assertThatIllegalStateException().isThrownBy {
@@ -204,6 +247,11 @@ internal class DefaultProcessApplicationLifecycleTest {
       lifecycle.transitionTo(ProcessApplicationPhase.INFRASTRUCTURE_READY)
     }.withMessage("Lifecycle is unusable after a participant failed during startup")
       .withCauseInstanceOf(IllegalStateException::class.java)
+
+    lifecycle.transitionTo(ProcessApplicationPhase.STOPPED)
+
+    assertThat(calls).containsExactly("stopping", "stopped")
+    assertThat(lifecycle.getPhase()).isEqualTo(ProcessApplicationPhase.STOPPED)
   }
 
   @Test

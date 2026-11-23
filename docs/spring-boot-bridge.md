@@ -26,7 +26,7 @@ lifecycle.transitionTo(
 )
 ```
 
-The lifecycle expands that request into all missing named startup transitions in order. During context shutdown, the driver requests `STOPPED`, which transitions through `STOPPING` first. This lets the lifecycle collect shutdown failures while still invoking every shutdown participant.
+The lifecycle expands that request into all missing named startup transitions in order. During context shutdown, the driver requests `STOPPED`, which transitions through `STOPPING` first. This lets the lifecycle collect shutdown failures while still invoking every shutdown participant. If startup fails, the driver requests the same shutdown transition during Spring context teardown, allowing participants to release partially started resources.
 
 The bridge does not create or require a task-subscription repository while the lifecycle is still `NOT_STARTED`. The `TaskSubscriptionApi` is obtained only when the startup transition crosses `SUBSCRIPTION_REGISTRATION`.
 
