@@ -79,7 +79,7 @@
         <groupId>org.jetbrains.kotlin</groupId>
         <artifactId>kotlin-maven-plugin</artifactId>
         <configuration>
-          <jvmTarget>17</jvmTarget>
+          <jvmTarget>21</jvmTarget>
           <args>
             <arg>-Xjvm-default=all-compatibility</arg>
             <arg>-Xconsistent-data-class-copy-visibility</arg>
