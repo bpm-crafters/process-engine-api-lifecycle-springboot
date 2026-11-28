@@ -1,6 +1,6 @@
 # Spring Boot lifecycle bridge
 
-`process-engine-api-lifecycle-spring-boot` is a Spring Boot bridge for the portable process application lifecycle. It currently contains the lifecycle contract, its default implementation, and Spring Boot integration. The portable lifecycle documentation is intentionally separate in [lifecycle.md](lifecycle.md), because the contract can later move to the Process Engine API without carrying Spring Boot concerns with it.
+`process-engine-api-lifecycle-spring-boot` integrates the portable [process application lifecycle](lifecycle.md) with Spring Boot.
 
 ## Auto-configuration
 
@@ -29,6 +29,15 @@ lifecycle.transitionTo(
 The lifecycle expands that request into all missing named startup transitions in order. During context shutdown, the driver requests `STOPPED`, which transitions through `STOPPING` first. This lets the lifecycle collect shutdown failures while still invoking every shutdown participant. If startup fails, the driver requests the same shutdown transition during Spring context teardown, allowing participants to release partially started resources.
 
 The bridge does not create or require a task-subscription repository while the lifecycle is still `NOT_STARTED`. The `TaskSubscriptionApi` is obtained only when the startup transition crosses `SUBSCRIPTION_REGISTRATION`.
+
+### Startup validation
+
+After `ApplicationStartedEvent` has been dispatched and before `ApplicationReadyEvent`, the bridge checks the lifecycle in an early `ApplicationRunner`.
+If the refreshed application context contains a `TaskSubscriptionApi`, the lifecycle must have reached `RUNNING` and must be below `STOPPING`.
+Spring Boot fails startup and reports the current phase when that requirement is violated. Applications without a `TaskSubscriptionApi` skip this check.
+
+If the error reports `NOT_STARTED`, check that the lifecycle driver is active and that the adapter's auto-configuration runs before
+`ProcessApplicationLifecycleAutoConfiguration`. The bridge's bean condition can skip the driver if the adapter declares the subscription API later.
 
 ## Spring events
 

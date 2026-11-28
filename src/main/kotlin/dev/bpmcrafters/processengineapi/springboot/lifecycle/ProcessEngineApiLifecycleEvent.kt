@@ -3,7 +3,7 @@ package dev.bpmcrafters.processengineapi.springboot.lifecycle
 /**
  * Marker for Spring events projected from a Process Engine API lifecycle phase.
  *
- * @since 1.8.0
+ * @since 2026.11.1
  */
 abstract class ProcessEngineApiLifecycleEvent(
   private val phase: Int

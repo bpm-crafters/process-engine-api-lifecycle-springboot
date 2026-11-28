@@ -12,7 +12,7 @@ import org.springframework.context.SmartLifecycle
 /**
  * Drives the portable lifecycle from Spring Boot startup and shutdown callbacks.
  *
- * @since 1.8.0
+ * @since 2026.11.1
  */
 class SpringProcessApplicationLifecycleDriver(
   private val lifecycle: ProcessApplicationLifecycle,
