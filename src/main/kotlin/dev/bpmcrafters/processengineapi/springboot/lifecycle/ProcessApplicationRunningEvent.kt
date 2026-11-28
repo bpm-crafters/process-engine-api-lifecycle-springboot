@@ -5,6 +5,6 @@ import dev.bpmcrafters.processengineapi.lifecycle.ProcessApplicationPhase
 /**
  * Published when normal process application delivery is enabled.
  *
- * @since 1.8.0
+ * @since 2026.11.1
  */
 class ProcessApplicationRunningEvent : ProcessEngineApiLifecycleEvent(ProcessApplicationPhase.RUNNING)

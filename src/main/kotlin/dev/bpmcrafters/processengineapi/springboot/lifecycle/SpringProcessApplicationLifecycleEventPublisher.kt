@@ -10,7 +10,7 @@ import org.springframework.context.ApplicationEventPublisher
 /**
  * Projects named Process Engine API lifecycle phases as synchronous Spring events.
  *
- * @since 1.8.0
+ * @since 2026.11.1
  */
 class SpringProcessApplicationLifecycleEventPublisher(
   lifecycle: ProcessApplicationLifecycle,

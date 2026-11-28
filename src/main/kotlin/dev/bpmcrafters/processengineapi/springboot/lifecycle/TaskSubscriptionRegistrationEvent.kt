@@ -6,7 +6,7 @@ import dev.bpmcrafters.processengineapi.task.TaskSubscriptionApi
 /**
  * Published synchronously while task subscriptions must be registered.
  *
- * @since 1.8.0
+ * @since 2026.11.1
  */
 class TaskSubscriptionRegistrationEvent(
   private val taskSubscriptionApi: TaskSubscriptionApi

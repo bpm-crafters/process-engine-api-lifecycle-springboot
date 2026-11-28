@@ -5,6 +5,6 @@ import dev.bpmcrafters.processengineapi.lifecycle.ProcessApplicationPhase
 /**
  * Published before process application resources are released.
  *
- * @since 1.8.0
+ * @since 2026.11.1
  */
 class ProcessApplicationStoppingEvent : ProcessEngineApiLifecycleEvent(ProcessApplicationPhase.STOPPING)
